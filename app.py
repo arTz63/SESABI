@@ -31,20 +31,39 @@ st.markdown(
 
 def gerar_pdf(texto):
   pdf = FPDF()
+  pdf.set_auto_page_break(auto=True, margin=15)
   pdf.add_page()
-  pdf.set_font("Helvetica", size=11)
+
   for linha in texto.split("\n"):
-    linha_limpa = linha.encode("latin-1", "replace").decode("latin-1")
-    if linha.startswith("# "):
-      pdf.set_font("Helvetica", style="B", size=16)
-      pdf.cell(0, 10, linha_limpa.replace("# ", ""), ln=True)
-      pdf.set_font("Helvetica", size=11)
-    elif linha.startswith("## "):
+    # Reseta o alinhamento horizontal para evitar estouro de margem no FPDF
+    pdf.set_x(pdf.l_margin)
+
+    # Trata caracteres especiais para o padrao latin-1 do FPDF
+    linha_limpa = (
+        linha.encode("latin-1", "replace").decode("latin-1").strip()
+    )
+
+    if not linha_limpa:
+      pdf.ln(3)
+      continue
+
+    if linha_limpa.startswith("# "):
+      pdf.set_font("Helvetica", style="B", size=15)
+      pdf.multi_cell(0, 8, linha_limpa.replace("# ", ""))
+      pdf.ln(2)
+    elif linha_limpa.startswith("## "):
       pdf.set_font("Helvetica", style="B", size=13)
-      pdf.cell(0, 8, linha_limpa.replace("## ", ""), ln=True)
-      pdf.set_font("Helvetica", size=11)
+      pdf.multi_cell(0, 7, linha_limpa.replace("## ", ""))
+      pdf.ln(2)
+    elif linha_limpa.startswith("### "):
+      pdf.set_font("Helvetica", style="B", size=11)
+      pdf.multi_cell(0, 6, linha_limpa.replace("### ", ""))
+      pdf.ln(1)
     else:
-      pdf.multi_cell(0, 6, linha_limpa)
+      pdf.set_font("Helvetica", size=10)
+      pdf.multi_cell(0, 5, linha_limpa)
+      pdf.ln(1)
+
   return bytes(pdf.output())
 
 
@@ -104,6 +123,7 @@ if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
     st.warning("Preencha o Nicho e o Público-Alvo.")
   else:
     with st.spinner("⚡ Gerando Dossiê Estratégico em tempo real..."):
+      # 1. Chamada de Inteligência Gemini
       try:
         client = genai.Client(api_key=gemini_api_key.strip())
 
@@ -130,24 +150,35 @@ Gere um dossiê executivo direto, prático e profundo para:
 - Proposta Única de Valor (PUV).
 - Script de Abordagem Direct (WhatsApp/LinkedIn).
 - Copy de Anúncio High-Ticket.
+
+## 4. DIRETRIZ DE FECHAMENTO (REUNIÃO DE VENDAS)
+- Roteiro de condução de reunião comercial.
 """
         response = client.models.generate_content(
-            model="gemini-3.6-flash", contents=prompt
+            model="gemini-2.5-flash", contents=prompt
         )
+        dossie_texto = response.text if response else None
 
-        if response and response.text:
-          st.success("✅ Dossiê gerado com sucesso!")
-          st.markdown("---")
-          st.markdown(response.text)
+      except Exception as e:
+        st.error(f"Erro na API do Gemini: {str(e)}")
+        dossie_texto = None
 
-          pdf_bytes = gerar_pdf(response.text)
+      # 2. Exibição e Geração do PDF
+      if dossie_texto:
+        st.success("✅ Dossiê gerado com sucesso!")
+        st.markdown("---")
+        st.markdown(dossie_texto)
+
+        try:
+          pdf_bytes = gerar_pdf(dossie_texto)
           st.download_button(
               label="📥 BAIXAR DOSSIÊ EXECUTIVO (PDF)",
               data=pdf_bytes,
               file_name=f"Dossie_DeepMarket_{nicho.replace(' ', '_')}.pdf",
               mime="application/pdf",
           )
-        else:
-          st.error("A API não retornou resposta. Verifique sua chave.")
-      except Exception as e:
-        st.error(f"Erro na chamada da API: {str(e)}")
+        except Exception as e:
+          st.warning(
+              "O dossiê foi gerado acima, mas ocorreu um erro na formatação do"
+              f" PDF: {str(e)}"
+          )
