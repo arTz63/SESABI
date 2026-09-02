@@ -35,13 +35,8 @@ def gerar_pdf(texto):
   pdf.add_page()
 
   for linha in texto.split("\n"):
-    # Reseta o alinhamento horizontal para evitar estouro de margem no FPDF
     pdf.set_x(pdf.l_margin)
-
-    # Trata caracteres especiais para o padrao latin-1 do FPDF
-    linha_limpa = (
-        linha.encode("latin-1", "replace").decode("latin-1").strip()
-    )
+    linha_limpa = linha.encode("latin-1", "replace").decode("latin-1").strip()
 
     if not linha_limpa:
       pdf.ln(3)
@@ -123,7 +118,6 @@ if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
     st.warning("Preencha o Nicho e o Público-Alvo.")
   else:
     with st.spinner("⚡ Gerando Dossiê Estratégico em tempo real..."):
-      # 1. Chamada de Inteligência Gemini
       try:
         client = genai.Client(api_key=gemini_api_key.strip())
 
@@ -155,7 +149,7 @@ Gere um dossiê executivo direto, prático e profundo para:
 - Roteiro de condução de reunião comercial.
 """
         response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
+            model="gemini-3.6-flash", contents=prompt
         )
         dossie_texto = response.text if response else None
 
@@ -163,7 +157,6 @@ Gere um dossiê executivo direto, prático e profundo para:
         st.error(f"Erro na API do Gemini: {str(e)}")
         dossie_texto = None
 
-      # 2. Exibição e Geração do PDF
       if dossie_texto:
         st.success("✅ Dossiê gerado com sucesso!")
         st.markdown("---")
