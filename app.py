@@ -6,25 +6,44 @@ import streamlit as st
 
 # Configuração da página
 st.set_page_config(
-    page_title="DeepMarket AI — Enterprise v2.0",
+    page_title="DeepMarket AI — Enterprise Strategy Platform",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Estilização CSS
+# Estilização CSS Enterprise
 st.markdown(
     """
     <style>
     .stApp { background-color: #0b0f17; color: #e2e8f0; }
+    
+    /* Botão Principal */
     div.stButton > button:first-child {
-        background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+        background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
         color: white;
-        font-weight: bold;
+        font-weight: 600;
+        font-size: 16px;
         border-radius: 8px;
         border: none;
-        padding: 0.75rem 1.5rem;
+        padding: 0.85rem 1.5rem;
         width: 100%;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+        transition: all 0.3s ease;
+    }
+    div.stButton > button:first-child:hover {
+        background: linear-gradient(90deg, #1d4ed8 0%, #1e40af 100%);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+    }
+    
+    /* Card de Autenticação */
+    .login-card {
+        background-color: #1e293b;
+        padding: 2.5rem;
+        border-radius: 12px;
+        border: 1px solid #334155;
+        max-width: 450px;
+        margin: 4rem auto;
     }
     </style>
 """,
@@ -51,14 +70,14 @@ def sanitizar_texto_pdf(texto):
       "✅": "",
       "⚡": "",
       "📈": "",
+      "🎯": "",
+      "💰": "",
+      "🔎": "",
   }
   for orig, dest in substituicoes.items():
     texto = texto.replace(orig, dest)
 
-  # Remove marcadores de negrito markdown para não poluir o PDF
   texto = re.sub(r"\*\*(.*?)\*\*", r"\1", texto)
-
-  # Converte caracteres não suportados pelo Latin-1 para similar limpo ou ignora
   return texto.encode("latin-1", "replace").decode("latin-1")
 
 
@@ -98,7 +117,6 @@ def gerar_pdf(texto):
 
 
 def obter_api_key():
-  """Obtém a chave da API do Gemini priorizando as Secrets do servidor."""
   if "GEMINI_API_KEY" in st.secrets:
     return st.secrets["GEMINI_API_KEY"]
   elif "gemini_api_key_user" in st.session_state:
@@ -107,7 +125,6 @@ def obter_api_key():
 
 
 def validar_licenca(chave_inserida):
-  """Valida a licença VIP do cliente contra as chaves autorizadas no servidor."""
   chave_limpa = chave_inserida.strip()
   chaves_validas = st.secrets.get(
       "VIP_KEYS", ["VIP-MASTER-2026", "ARTHUR-VIP"]
@@ -145,113 +162,163 @@ def gerar_dossie_com_retry(client, prompt):
           break
 
   raise Exception(
-      f"Servidor ocupado ou chave de API inválida. Detalhe: {ultimo_erro}"
+      f"Servidor ocupado ou instabilidade de conexão. Detalhe: {ultimo_erro}"
   )
 
 
-# Barra Lateral (Sidebar)
-st.sidebar.title("🛡️ Acesso VIP ao Sistema")
-vip_key = st.sidebar.text_input("Insira sua Licença VIP de Acesso:", type="password")
+# Gerenciamento de Estado de Autenticação
+if "autenticado" not in st.session_state:
+  st.session_state["autenticado"] = False
 
-is_authenticated = validar_licenca(vip_key) if vip_key else False
+# TELA 1: GATEWAY DE ACESSO (Módulo de Login Profissional)
+if not st.session_state["autenticado"]:
+  col_a, col_b, col_c = st.columns([1, 2, 1])
+  with col_b:
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.title("📈 DeepMarket AI")
+    st.caption("Plataforma Enterprise de Inteligência e Engenharia de Mercado")
+    st.markdown("---")
 
-if vip_key:
-  if is_authenticated:
-    st.sidebar.success("Licença Ativa (Acesso Liberado)")
-  else:
-    st.sidebar.error("Licença inválida ou expirada.")
-
-# Caso a chave do servidor não esteja configurada nas secrets, libera um campo secundário em modo Dev
-api_key_disponivel = obter_api_key()
-if not api_key_disponivel and is_authenticated:
-  st.sidebar.markdown("---")
-  user_key_input = st.sidebar.text_input(
-      "Chave API Gemini (Modo Dev):", type="password"
-  )
-  if user_key_input:
-    st.session_state["gemini_api_key_user"] = user_key_input.strip()
-    api_key_disponivel = user_key_input.strip()
-
-# Painel Principal
-st.title("📈 DeepMarket AI — Enterprise v2.0")
-st.caption(
-    "Suíte Autônoma de Engenharia de Mercado, Mapeamento Comercial e Geração"
-    " de Dossiês"
-)
-
-TEMPLATES = {
-    "Personalizado (Digitar do zero)": {"nicho": "", "publico": ""},
-    "🏥 Saúde & Estética High-Ticket": {
-        "nicho": (
-            "Automação de Agendamento, Confirmação e Retenção de Pacientes"
-        ),
-        "publico": (
-            "Médicos Donos de Clínicas de Cirurgia Plástica e Dermatologia"
-        ),
-    },
-    "⚖️ Jurídico & Peças Processuais": {
-        "nicho": "IA para Triagem Automática de Processos e Redação de Peças",
-        "publico": "Sócios de Escritórios de Advocacia de Médio Porte",
-    },
-    "💰 Finanças & PMEs": {
-        "nicho": (
-            "Conciliação Financeira Automática e Centralização de Extratos"
-        ),
-        "publico": "Donos de PMEs e Gestores Financeiros de Redes de Franquia",
-    },
-    "🚀 Gestão de Tráfego & Agências": {
-        "nicho": "Prospecção Ativa Outbound e Agendamento de Reuniões B2B",
-        "publico": "Agências de Marketing e Gestores de Tráfego Pago",
-    },
-}
-
-template_escolhido = st.selectbox(
-    "💡 Sugestões de Nichos Lucrativos (Clique para Autopreencher):",
-    options=list(TEMPLATES.keys()),
-)
-
-valores_template = TEMPLATES[template_escolhido]
-
-col1, col2, col3 = st.columns([2, 2, 1])
-with col1:
-  nicho = st.text_input(
-      "Nicho / Produto de Análise:",
-      value=valores_template["nicho"],
-      placeholder="Ex: Software de Gestão de Clínicas",
-  )
-with col2:
-  publico = st.text_input(
-      "Público-Alvo Prioritário:",
-      value=valores_template["publico"],
-      placeholder="Ex: Médicos Donos de Consultórios Médios",
-  )
-with col3:
-  ticket = st.selectbox(
-      "Ticket da Oferta:",
-      options=[
-          "R$ 100 - R$ 500",
-          "R$ 500 - R$ 1.000",
-          "R$ 1.000 - R$ 2.000",
-          "R$ 2.000+ (High-Ticket)",
-      ],
-  )
-
-if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
-  if not is_authenticated:
-    st.error("Insira uma Licença VIP válida na barra lateral para prosseguir.")
-  elif not api_key_disponivel:
-    st.error(
-        "Chave de API do servidor não localizada. Insira a chave no modo Dev na"
-        " barra lateral."
+    st.subheader("Acesso à Plataforma")
+    chave_input = st.text_input(
+        "Insira sua Chave de Licença:",
+        type="password",
+        placeholder="DM-XXXX-XXXX-XXXX",
     )
-  elif not nicho or not publico:
-    st.warning("Preencha o Nicho e o Público-Alvo.")
-  else:
-    with st.spinner("⚡ Processando inteligência de mercado..."):
-      try:
-        client = genai.Client(api_key=api_key_disponivel)
 
-        prompt = f"""
+    if st.button("Entrar no Sistema"):
+      if validar_licenca(chave_input):
+        st.session_state["autenticado"] = True
+        st.rerun()
+      else:
+        st.error(
+            "Chave de licença inválida ou expirada. Verifique suas credenciais."
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.info(
+        "💡 Ainda não possui licença corporativa? Entre em contato com nossa"
+        " equipe comercial."
+    )
+
+# TELA 2: DASHBOARD PRINCIPAL (Exibido apenas após validação)
+else:
+  # Barra Lateral Minimizada para Status
+  st.sidebar.title(" DeepMarket AI")
+  st.sidebar.success("● Licença Ativa")
+
+  if st.sidebar.button("Encerrar Sessão"):
+    st.session_state["autenticado"] = False
+    st.rerun()
+
+  api_key_disponivel = obter_api_key()
+
+  # Caso o servidor não tenha secret configurado
+  if not api_key_disponivel:
+    st.sidebar.markdown("---")
+    user_key_input = st.sidebar.text_input(
+        "Chave API Gemini (Desenvolvimento):", type="password"
+    )
+    if user_key_input:
+      st.session_state["gemini_api_key_user"] = user_key_input.strip()
+      api_key_disponivel = user_key_input.strip()
+
+  # Painel Principal
+  st.title("Geração de Dossiê Estratégico")
+  st.caption(
+      "Mapeamento de demanda, análise psicográfica de público e estrutura de"
+      " vendas High-Ticket."
+  )
+  st.markdown("---")
+
+  TEMPLATES = {
+      "Personalizado (Definir parâmetros manualmente)": {
+          "nicho": "",
+          "publico": "",
+      },
+      "🏥 Saúde & Estética High-Ticket": {
+          "nicho": (
+              "Automação de Agendamento, Confirmação e Retenção de Pacientes"
+          ),
+          "publico": (
+              "Médicos Donos de Clínicas de Cirurgia Plástica e Dermatologia"
+          ),
+      },
+      "⚖️ Jurídico & Peças Processuais": {
+          "nicho": (
+              "Inteligência Artificial para Triagem de Processos e Peças"
+          ),
+          "publico": "Sócios de Escritórios de Advocacia Corporativa",
+      },
+      "💰 Finanças & PMEs": {
+          "nicho": (
+              "Conciliação Financeira Automática e Centralização de Extratos"
+          ),
+          "publico": (
+              "Donos de PMEs e Gestores Financeiros de Redes de Franquias"
+          ),
+      },
+      "🚀 B2B & Agências de Crescimento": {
+          "nicho": "Prospecção Ativa Outbound e Agendamento de Reuniões B2B",
+          "publico": "Agências de Marketing, Consultorias e Gestores de Tráfego",
+      },
+  }
+
+  template_escolhido = st.selectbox(
+      "💡 Selecionar Modelo Preconfigurado:", options=list(TEMPLATES.keys())
+  )
+
+  valores_template = TEMPLATES[template_escolhido]
+
+  col1, col2, col3 = st.columns([2, 2, 1])
+  with col1:
+    nicho = st.text_input(
+        "Nicho ou Solução Analisada:",
+        value=valores_template["nicho"],
+        placeholder="Ex: Software de Gestão Médica",
+    )
+  with col2:
+    publico = st.text_input(
+        "Público-Alvo Prioritário:",
+        value=valores_template["publico"],
+        placeholder="Ex: Sócios de Clínicas Médicas",
+    )
+  with col3:
+    ticket = st.selectbox(
+        "Faixa de Ticket:",
+        options=[
+            "R$ 100 - R$ 500",
+            "R$ 500 - R$ 1.000",
+            "R$ 1.000 - R$ 2.000",
+            "R$ 2.000+ (High-Ticket)",
+        ],
+    )
+
+  if st.button("📊 GERAR DOSSIÊ ESTRATÉGICO"):
+    if not api_key_disponivel:
+      st.error("Servidor indisponível no momento. Contate o suporte técnico.")
+    elif not nicho or not publico:
+      st.warning("Preencha o Nicho e o Público-Alvo para continuar.")
+    else:
+      # Feedback Etapa por Etapa profissional
+      with st.status(
+          "Iniciando análise de mercado...", expanded=True
+      ) as status:
+        st.write("🔎 Analisando dinâmicas de mercado e volume de busca...")
+        time.sleep(1.2)
+
+        st.write("🎯 Identificando perfil psicográfico e dores do público...")
+        time.sleep(1.2)
+
+        st.write("💰 Estruturando viabilidade financeira e precificação...")
+        time.sleep(1.2)
+
+        st.write("📊 Compilando dossiê comercial e scripts de abordagem...")
+
+        try:
+          client = genai.Client(api_key=api_key_disponivel)
+
+          prompt = f"""
 Atue como Diretor Estratégico de Inteligência de Mercado B2B.
 Gere uma análise dividida EXATAMENTE em duas partes usando a tag [DIVISOR_DE_SESSAO] entre elas.
 
@@ -294,25 +361,33 @@ Gere uma análise dividida EXATAMENTE em duas partes usando a tag [DIVISOR_DE_SE
 ## 3. CHECKLIST DE ENTRADA DO CLIENTE (ONBOARDING)
 - Requisitos técnicos que o cliente precisa fornecer antes do início do projeto.
 """
-        resultado_completo, modelo_usado = gerar_dossie_com_retry(
-            client, prompt
-        )
+          resultado_completo, modelo_usado = gerar_dossie_com_retry(
+              client, prompt
+          )
 
-        if "[DIVISOR_DE_SESSAO]" in resultado_completo:
-          partes = resultado_completo.split("[DIVISOR_DE_SESSAO]")
-          dossie_texto = partes[0].strip()
-          sugestoes_texto = partes[1].strip()
-        else:
-          dossie_texto = resultado_completo
-          sugestoes_texto = "Plano de Ação integrado ao dossiê principal."
+          if "[DIVISOR_DE_SESSAO]" in resultado_completo:
+            partes = resultado_completo.split("[DIVISOR_DE_SESSAO]")
+            dossie_texto = partes[0].strip()
+            sugestoes_texto = partes[1].strip()
+          else:
+            dossie_texto = resultado_completo
+            sugestoes_texto = "Plano de Ação integrado ao dossiê principal."
 
-      except Exception as e:
-        st.error(f"Erro no processamento: {str(e)}")
-        dossie_texto = None
-        sugestoes_texto = None
+          status.update(
+              label="📄 Dossiê concluído com sucesso!",
+              state="complete",
+              expanded=False,
+          )
+
+        except Exception as e:
+          status.update(
+              label="❌ Erro no processamento.", state="error", expanded=True
+          )
+          st.error(f"Detalhe do erro: {str(e)}")
+          dossie_texto = None
+          sugestoes_texto = None
 
       if dossie_texto:
-        st.success(f"✅ Análise concluída via {modelo_usado}!")
         st.markdown("---")
 
         tab1, tab2 = st.tabs(
