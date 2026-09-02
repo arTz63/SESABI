@@ -49,14 +49,13 @@ def gerar_pdf(texto):
 
 
 def obter_modelo_valido(client):
-  # Lista os modelos disponíveis para a chave e pega o primeiro 'flash' disponível
   try:
     for m in client.models.list():
       if "flash" in m.name.lower():
         return m.name
   except Exception:
     pass
-  return "gemini-2.5-flash"  # Modelo padrão do SDK novo
+  return "gemini-3.6-flash"
 
 
 # Sidebar
