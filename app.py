@@ -1,3 +1,4 @@
+import time
 from fpdf import FPDF
 from google import genai
 import streamlit as st
@@ -60,6 +61,43 @@ def gerar_pdf(texto):
       pdf.ln(1)
 
   return bytes(pdf.output())
+
+
+def gerar_dossie_com_retry(client, prompt):
+  # Lista de modelos por ordem de prioridade
+  modelos_prioridade = [
+      "gemini-3.6-flash",
+      "gemini-2.5-flash",
+      "gemini-1.5-flash",
+  ]
+  ultimo_erro = None
+
+  for modelo in modelos_prioridade:
+    for tentativa in range(1, 4):  # Tenta até 3 vezes por modelo
+      try:
+        response = client.models.generate_content(
+            model=modelo, contents=prompt
+        )
+        if response and response.text:
+          return response.text, modelo
+      except Exception as e:
+        ultimo_erro = str(e)
+        # Se for instabilidade temporária (503 / 429), aguarda 2 segundos e tenta de novo
+        if (
+            "503" in str(e)
+            or "UNAVAILABLE" in str(e)
+            or "429" in str(e)
+            or "RESOURCE_EXHAUSTED" in str(e)
+        ):
+          time.sleep(2)
+          continue
+        else:
+          # Se for erro de modelo inexistente/não suportado (404), passa pro próximo modelo da lista
+          break
+
+  raise Exception(
+      f"Servidor ocupado após várias tentativas. Detalhe: {ultimo_erro}"
+  )
 
 
 # Sidebar
@@ -148,17 +186,16 @@ Gere um dossiê executivo direto, prático e profundo para:
 ## 4. DIRETRIZ DE FECHAMENTO (REUNIÃO DE VENDAS)
 - Roteiro de condução de reunião comercial.
 """
-        response = client.models.generate_content(
-            model="gemini-3.6-flash", contents=prompt
-        )
-        dossie_texto = response.text if response else None
+        dossie_texto, modelo_usado = gerar_dossie_com_retry(client, prompt)
 
       except Exception as e:
         st.error(f"Erro na API do Gemini: {str(e)}")
         dossie_texto = None
 
       if dossie_texto:
-        st.success("✅ Dossiê gerado com sucesso!")
+        st.success(
+            f"✅ Dossiê gerado com sucesso! (Processado por: {modelo_usado})"
+        )
         st.markdown("---")
         st.markdown(dossie_texto)
 
