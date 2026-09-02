@@ -1,9 +1,10 @@
+import re
 import time
 from fpdf import FPDF
 from google import genai
 import streamlit as st
 
-# Configuração da página (DEVE SER O PRIMEIRO COMANDO ST DO ARQUIVO)
+# Configuração da página
 st.set_page_config(
     page_title="DeepMarket AI — Enterprise v2.0",
     page_icon="📈",
@@ -31,37 +32,89 @@ st.markdown(
 )
 
 
+def sanitizar_texto_pdf(texto):
+  """Sanitiza o texto Markdown para exibição em PDF Latin-1 sem caracteres corrompidos."""
+  substituicoes = {
+      "“": '"',
+      "”": '"',
+      "‘": "'",
+      "’": "'",
+      "—": "-",
+      "–": "-",
+      "•": "*",
+      "…": "...",
+      "🚀": "",
+      "📊": "",
+      "💡": "",
+      "🛡️": "",
+      "🔑": "",
+      "✅": "",
+      "⚡": "",
+      "📈": "",
+  }
+  for orig, dest in substituicoes.items():
+    texto = texto.replace(orig, dest)
+
+  # Remove marcadores de negrito markdown para não poluir o PDF
+  texto = re.sub(r"\*\*(.*?)\*\*", r"\1", texto)
+
+  # Converte caracteres não suportados pelo Latin-1 para similar limpo ou ignora
+  return texto.encode("latin-1", "replace").decode("latin-1")
+
+
 def gerar_pdf(texto):
   pdf = FPDF()
   pdf.set_auto_page_break(auto=True, margin=15)
   pdf.add_page()
 
-  for linha in texto.split("\n"):
-    pdf.set_x(pdf.l_margin)
-    linha_limpa = linha.encode("latin-1", "replace").decode("latin-1").strip()
+  texto_limpo = sanitizar_texto_pdf(texto)
 
-    if not linha_limpa:
+  for linha in texto_limpo.split("\n"):
+    pdf.set_x(pdf.l_margin)
+    linha_str = linha.strip()
+
+    if not linha_str:
       pdf.ln(3)
       continue
 
-    if linha_limpa.startswith("# "):
-      pdf.set_font("Helvetica", style="B", size=15)
-      pdf.multi_cell(0, 8, linha_limpa.replace("# ", ""))
+    if linha_str.startswith("# "):
+      pdf.set_font("Helvetica", style="B", size=14)
+      pdf.multi_cell(0, 8, linha_str.replace("# ", ""))
       pdf.ln(2)
-    elif linha_limpa.startswith("## "):
-      pdf.set_font("Helvetica", style="B", size=13)
-      pdf.multi_cell(0, 7, linha_limpa.replace("## ", ""))
+    elif linha_str.startswith("## "):
+      pdf.set_font("Helvetica", style="B", size=12)
+      pdf.multi_cell(0, 7, linha_str.replace("## ", ""))
       pdf.ln(2)
-    elif linha_limpa.startswith("### "):
-      pdf.set_font("Helvetica", style="B", size=11)
-      pdf.multi_cell(0, 6, linha_limpa.replace("### ", ""))
+    elif linha_str.startswith("### "):
+      pdf.set_font("Helvetica", style="B", size=10)
+      pdf.multi_cell(0, 6, linha_str.replace("### ", ""))
       pdf.ln(1)
     else:
-      pdf.set_font("Helvetica", size=10)
-      pdf.multi_cell(0, 5, linha_limpa)
+      pdf.set_font("Helvetica", size=9)
+      pdf.multi_cell(0, 5, linha_str)
       pdf.ln(1)
 
   return bytes(pdf.output())
+
+
+def obter_api_key():
+  """Obtém a chave da API do Gemini priorizando as Secrets do servidor."""
+  if "GEMINI_API_KEY" in st.secrets:
+    return st.secrets["GEMINI_API_KEY"]
+  elif "gemini_api_key_user" in st.session_state:
+    return st.session_state["gemini_api_key_user"]
+  return None
+
+
+def validar_licenca(chave_inserida):
+  """Valida a licença VIP do cliente contra as chaves autorizadas no servidor."""
+  chave_limpa = chave_inserida.strip()
+  chaves_validas = st.secrets.get(
+      "VIP_KEYS", ["VIP-MASTER-2026", "ARTHUR-VIP"]
+  )
+  if isinstance(chaves_validas, str):
+    chaves_validas = [chaves_validas]
+  return chave_limpa in chaves_validas
 
 
 def gerar_dossie_com_retry(client, prompt):
@@ -82,11 +135,9 @@ def gerar_dossie_com_retry(client, prompt):
           return response.text, modelo
       except Exception as e:
         ultimo_erro = str(e)
-        if (
-            "503" in str(e)
-            or "UNAVAILABLE" in str(e)
-            or "429" in str(e)
-            or "RESOURCE_EXHAUSTED" in str(e)
+        if any(
+            err in str(e)
+            for err in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"]
         ):
           time.sleep(2)
           continue
@@ -94,32 +145,32 @@ def gerar_dossie_com_retry(client, prompt):
           break
 
   raise Exception(
-      f"Servidor ocupado após várias tentativas. Detalhe: {ultimo_erro}"
+      f"Servidor ocupado ou chave de API inválida. Detalhe: {ultimo_erro}"
   )
 
 
 # Barra Lateral (Sidebar)
-st.sidebar.title("🛡️ Autenticação do Sistema")
-vip_key = st.sidebar.text_input("Insira sua Chave de Licença VIP:", type="password")
-gemini_api_key = st.sidebar.text_input(
-    "Chave Gemini API (Grátis):", type="password"
-)
+st.sidebar.title("🛡️ Acesso VIP ao Sistema")
+vip_key = st.sidebar.text_input("Insira sua Licença VIP de Acesso:", type="password")
 
-VALID_VIP_KEY = "VIP-MASTER-2026"
-is_authenticated = (
-    vip_key.strip() in [VALID_VIP_KEY, "ARTHUR-VIP"] if vip_key else False
-)
+is_authenticated = validar_licenca(vip_key) if vip_key else False
 
 if vip_key:
   if is_authenticated:
-    st.sidebar.success("Licença Master Ativa (Acesso Total)")
+    st.sidebar.success("Licença Ativa (Acesso Liberado)")
   else:
-    st.sidebar.error("Chave de licença corrompida ou inválida.")
+    st.sidebar.error("Licença inválida ou expirada.")
 
-st.sidebar.markdown("---")
-st.sidebar.markdown(
-    "[🔑 Obter chave API Gemini Grátis](https://aistudio.google.com/)"
-)
+# Caso a chave do servidor não esteja configurada nas secrets, libera um campo secundário em modo Dev
+api_key_disponivel = obter_api_key()
+if not api_key_disponivel and is_authenticated:
+  st.sidebar.markdown("---")
+  user_key_input = st.sidebar.text_input(
+      "Chave API Gemini (Modo Dev):", type="password"
+  )
+  if user_key_input:
+    st.session_state["gemini_api_key_user"] = user_key_input.strip()
+    api_key_disponivel = user_key_input.strip()
 
 # Painel Principal
 st.title("📈 DeepMarket AI — Enterprise v2.0")
@@ -128,7 +179,6 @@ st.caption(
     " de Dossiês"
 )
 
-# Sugestões Prontas (Templates para facilidade do usuário)
 TEMPLATES = {
     "Personalizado (Digitar do zero)": {"nicho": "", "publico": ""},
     "🏥 Saúde & Estética High-Ticket": {
@@ -188,17 +238,18 @@ with col3:
 
 if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
   if not is_authenticated:
-    st.error("Insira a Chave VIP 'VIP-MASTER-2026' na barra lateral.")
-  elif not gemini_api_key:
-    st.error("Insira sua Chave de API do Gemini na barra lateral.")
+    st.error("Insira uma Licença VIP válida na barra lateral para prosseguir.")
+  elif not api_key_disponivel:
+    st.error(
+        "Chave de API do servidor não localizada. Insira a chave no modo Dev na"
+        " barra lateral."
+    )
   elif not nicho or not publico:
     st.warning("Preencha o Nicho e o Público-Alvo.")
   else:
-    with st.spinner(
-        "⚡ Gerando Dossiê Estratégico e Plano de Ação em tempo real..."
-    ):
+    with st.spinner("⚡ Processando inteligência de mercado..."):
       try:
-        client = genai.Client(api_key=gemini_api_key.strip())
+        client = genai.Client(api_key=api_key_disponivel)
 
         prompt = f"""
 Atue como Diretor Estratégico de Inteligência de Mercado B2B.
@@ -256,15 +307,12 @@ Gere uma análise dividida EXATAMENTE em duas partes usando a tag [DIVISOR_DE_SE
           sugestoes_texto = "Plano de Ação integrado ao dossiê principal."
 
       except Exception as e:
-        st.error(f"Erro na API do Gemini: {str(e)}")
+        st.error(f"Erro no processamento: {str(e)}")
         dossie_texto = None
         sugestoes_texto = None
 
       if dossie_texto:
-        st.success(
-            f"✅ Análise completa gerada com sucesso! (Processado por:"
-            f" {modelo_usado})"
-        )
+        st.success(f"✅ Análise concluída via {modelo_usado}!")
         st.markdown("---")
 
         tab1, tab2 = st.tabs(
@@ -283,7 +331,7 @@ Gere uma análise dividida EXATAMENTE em duas partes usando a tag [DIVISOR_DE_SE
                 key="btn_pdf_dossie",
             )
           except Exception as e:
-            st.warning(f"Erro no PDF Comercial: {str(e)}")
+            st.warning(f"Erro ao compilar PDF Comercial: {str(e)}")
 
         with tab2:
           st.markdown(sugestoes_texto)
@@ -297,4 +345,4 @@ Gere uma análise dividida EXATAMENTE em duas partes usando a tag [DIVISOR_DE_SE
                 key="btn_pdf_plano",
             )
           except Exception as e:
-            st.warning(f"Erro no PDF do Plano de Ação: {str(e)}")
+            st.warning(f"Erro ao compilar PDF do Plano de Ação: {str(e)}")
