@@ -48,16 +48,6 @@ def gerar_pdf(texto):
   return bytes(pdf.output())
 
 
-def obter_modelo_valido(client):
-  try:
-    for m in client.models.list():
-      if "flash" in m.name.lower():
-        return m.name
-  except Exception:
-    pass
-  return "gemini-3.6-flash"
-
-
 # Sidebar
 st.sidebar.title("🛡️ Autenticação do Sistema")
 vip_key = st.sidebar.text_input("Insira sua Chave de Licença VIP:", type="password")
@@ -116,7 +106,6 @@ if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
     with st.spinner("⚡ Gerando Dossiê Estratégico em tempo real..."):
       try:
         client = genai.Client(api_key=gemini_api_key.strip())
-        modelo_escolhido = obter_modelo_valido(client)
 
         prompt = f"""
 Atue como Diretor Estratégico de Inteligência de Mercado B2B.
@@ -143,7 +132,7 @@ Gere um dossiê executivo direto, prático e profundo para:
 - Copy de Anúncio High-Ticket.
 """
         response = client.models.generate_content(
-            model=modelo_escolhido, contents=prompt
+            model="gemini-3.6-flash", contents=prompt
         )
 
         if response and response.text:
