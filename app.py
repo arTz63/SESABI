@@ -106,7 +106,7 @@ if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
     with st.spinner("⚡ Gerando Dossiê Estratégico em tempo real..."):
       try:
         genai.configure(api_key=gemini_api_key.strip())
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-3.6-flash")
 
         prompt = f"""
 Atue como Diretor Estratégico de Inteligência de Mercado B2B.
