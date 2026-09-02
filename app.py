@@ -64,7 +64,6 @@ def gerar_pdf(texto):
 
 
 def gerar_dossie_com_retry(client, prompt):
-  # Lista de modelos por ordem de prioridade
   modelos_prioridade = [
       "gemini-3.6-flash",
       "gemini-2.5-flash",
@@ -73,7 +72,7 @@ def gerar_dossie_com_retry(client, prompt):
   ultimo_erro = None
 
   for modelo in modelos_prioridade:
-    for tentativa in range(1, 4):  # Tenta até 3 vezes por modelo
+    for tentativa in range(1, 4):
       try:
         response = client.models.generate_content(
             model=modelo, contents=prompt
@@ -82,7 +81,6 @@ def gerar_dossie_com_retry(client, prompt):
           return response.text, modelo
       except Exception as e:
         ultimo_erro = str(e)
-        # Se for instabilidade temporária (503 / 429), aguarda 2 segundos e tenta de novo
         if (
             "503" in str(e)
             or "UNAVAILABLE" in str(e)
@@ -92,7 +90,6 @@ def gerar_dossie_com_retry(client, prompt):
           time.sleep(2)
           continue
         else:
-          # Se for erro de modelo inexistente/não suportado (404), passa pro próximo modelo da lista
           break
 
   raise Exception(
@@ -144,7 +141,12 @@ with col2:
 with col3:
   ticket = st.selectbox(
       "Ticket da Oferta:",
-      options=["R$ 100 - R$ 500", "R$ 500 - R$ 2.000", "R$ 2.000+ (High-Ticket)"],
+      options=[
+          "R$ 100 - R$ 500",
+          "R$ 500 - R$ 1.000",
+          "R$ 1.000 - R$ 2.000",
+          "R$ 2.000+ (High-Ticket)",
+      ],
   )
 
 if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
@@ -155,17 +157,21 @@ if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
   elif not nicho or not publico:
     st.warning("Preencha o Nicho e o Público-Alvo.")
   else:
-    with st.spinner("⚡ Gerando Dossiê Estratégico em tempo real..."):
+    with st.spinner(
+        "⚡ Gerando Dossiê Estratégico e Plano de Ação em tempo real..."
+    ):
       try:
         client = genai.Client(api_key=gemini_api_key.strip())
 
         prompt = f"""
 Atue como Diretor Estratégico de Inteligência de Mercado B2B.
-Gere um dossiê executivo direto, prático e profundo para:
+Gere uma análise dividida EXATAMENTE em duas partes usando a tag [DIVISOR_DE_SESSAO] entre elas.
+
 - Nicho: {nicho}
 - Público: {publico}
 - Ticket: {ticket}
 
+--- PARTE 1: DOSSIÊ EXECUTIVO DE MERCADO ---
 # DOSSIÊ EXECUTIVO DE MERCADO
 
 ## 1. MÉTRICAS DE OPORTUNIDADE E SATURAÇÃO
@@ -185,30 +191,73 @@ Gere um dossiê executivo direto, prático e profundo para:
 
 ## 4. DIRETRIZ DE FECHAMENTO (REUNIÃO DE VENDAS)
 - Roteiro de condução de reunião comercial.
+
+[DIVISOR_DE_SESSAO]
+
+--- PARTE 2: PLANO DE AÇÃO E SUGESTÕES TÁTICAS ---
+# PLANO DE AÇÃO E RECOMENDAÇÕES PRÁTICAS
+
+## 1. CRONOGRAMA DE IMPLEMENTAÇÃO (SEMANA A SEMANA)
+- Passo a passo de execução técnica e comercial para os primeiros 30 dias.
+
+## 2. STACK TECNOLÓGICO E FERRAMENTAS RECOMENDADAS
+- Ferramentas, APIs e softwares recomendados para escalar essaoperação.
+
+## 3. CHECKLIST DE ENTRADA DO CLIENTE (ONBOARDING)
+- Requisitos técnicos que o cliente precisa fornecer antes do início do projeto.
 """
-        dossie_texto, modelo_usado = gerar_dossie_com_retry(client, prompt)
+        resultado_completo, modelo_usado = gerar_dossie_com_retry(
+            client, prompt
+        )
+
+        if "[DIVISOR_DE_SESSAO]" in resultado_completo:
+          partes = resultado_completo.split("[DIVISOR_DE_SESSAO]")
+          dossie_texto = partes[0].strip()
+          sugestoes_texto = partes[1].strip()
+        else:
+          dossie_texto = resultado_completo
+          sugestoes_texto = "Plano de Ação integrado ao dossiê principal."
 
       except Exception as e:
         st.error(f"Erro na API do Gemini: {str(e)}")
         dossie_texto = None
+        sugestoes_texto = None
 
       if dossie_texto:
         st.success(
-            f"✅ Dossiê gerado com sucesso! (Processado por: {modelo_usado})"
+            f"✅ Análise completa gerada com sucesso! (Processado por:"
+            f" {modelo_usado})"
         )
         st.markdown("---")
-        st.markdown(dossie_texto)
 
-        try:
-          pdf_bytes = gerar_pdf(dossie_texto)
-          st.download_button(
-              label="📥 BAIXAR DOSSIÊ EXECUTIVO (PDF)",
-              data=pdf_bytes,
-              file_name=f"Dossie_DeepMarket_{nicho.replace(' ', '_')}.pdf",
-              mime="application/pdf",
-          )
-        except Exception as e:
-          st.warning(
-              "O dossiê foi gerado acima, mas ocorreu um erro na formatação do"
-              f" PDF: {str(e)}"
-          )
+        tab1, tab2 = st.tabs(
+            ["📊 Dossiê Comercial", "💡 Plano de Ação & Sugestões"]
+        )
+
+        with tab1:
+          st.markdown(dossie_texto)
+          try:
+            pdf_bytes1 = gerar_pdf(dossie_texto)
+            st.download_button(
+                label="📥 BAIXAR DOSSIÊ COMERCIAL (PDF)",
+                data=pdf_bytes1,
+                file_name=f"Dossie_Comercial_{nicho.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                key="btn_pdf_dossie",
+            )
+          except Exception as e:
+            st.warning(f"Erro no PDF Comercial: {str(e)}")
+
+        with tab2:
+          st.markdown(sugestoes_texto)
+          try:
+            pdf_bytes2 = gerar_pdf(sugestoes_texto)
+            st.download_button(
+                label="📥 BAIXAR PLANO DE AÇÃO (PDF)",
+                data=pdf_bytes2,
+                file_name=f"Plano_de_Acao_{nicho.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                key="btn_pdf_plano",
+            )
+          except Exception as e:
+            st.warning(f"Erro no PDF do Plano de Ação: {str(e)}")
