@@ -1,5 +1,5 @@
 from fpdf import FPDF
-import google.generativeai as genai
+from google import genai
 import streamlit as st
 
 # Configuração da página
@@ -46,6 +46,17 @@ def gerar_pdf(texto):
     else:
       pdf.multi_cell(0, 6, linha_limpa)
   return bytes(pdf.output())
+
+
+def obter_modelo_valido(client):
+  # Lista os modelos disponíveis para a chave e pega o primeiro 'flash' disponível
+  try:
+    for m in client.models.list():
+      if "flash" in m.name.lower():
+        return m.name
+  except Exception:
+    pass
+  return "gemini-2.5-flash"  # Modelo padrão do SDK novo
 
 
 # Sidebar
@@ -105,8 +116,8 @@ if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
   else:
     with st.spinner("⚡ Gerando Dossiê Estratégico em tempo real..."):
       try:
-        genai.configure(api_key=gemini_api_key.strip())
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        client = genai.Client(api_key=gemini_api_key.strip())
+        modelo_escolhido = obter_modelo_valido(client)
 
         prompt = f"""
 Atue como Diretor Estratégico de Inteligência de Mercado B2B.
@@ -132,7 +143,9 @@ Gere um dossiê executivo direto, prático e profundo para:
 - Script de Abordagem Direct (WhatsApp/LinkedIn).
 - Copy de Anúncio High-Ticket.
 """
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model=modelo_escolhido, contents=prompt
+        )
 
         if response and response.text:
           st.success("✅ Dossiê gerado com sucesso!")
