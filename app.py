@@ -29,8 +29,14 @@ class LicenseManager:
 
   @classmethod
   def validate_license(cls, token_b64: str) -> tuple[bool, str, str]:
+    token_str = token_b64.strip()
+
+    # Chave Master Admin
+    if token_str in ["VIP-MASTER-2026", "ARTHUR-VIP"]:
+      return True, "Licença Master Ativa (Acesso Total)", "Master User"
+
     try:
-      decoded = base64.b64decode(token_b64.strip().encode()).decode()
+      decoded = base64.b64decode(token_str.encode()).decode()
       parts = decoded.split("|")
       if len(parts) != 3:
         return False, "Formato de chave inválido.", ""
@@ -43,7 +49,9 @@ class LicenseManager:
       if signature != expected_sig:
         return False, "Assinatura de licença inválida.", ""
 
-      expiry_date = datetime.datetime.strptime(expiry_str, "%Y-%m-%d").date()
+      expiry_date = datetime.datetime.strptime(
+          expiry_str, "%Y-%m-%d"
+      ).date()
       if datetime.date.today() > expiry_date:
         return False, f"Licença expirada em {expiry_str}.", client_id
 
@@ -63,7 +71,7 @@ class LicenseManager:
 class CorporatePDF(FPDF):
 
   def header(self):
-    self.set_fill_color(15, 23, 42)  # Dark Slate Blue
+    self.set_fill_color(15, 23, 42)
     self.rect(0, 0, 210, 25, "F")
     self.set_font("Arial", "B", 14)
     self.set_text_color(255, 255, 255)
@@ -95,7 +103,6 @@ def build_pdf_report(nicho, metrics, persona_data, copy_data):
   pdf.add_page()
   pdf.set_text_color(30, 41, 59)
 
-  # Cabeçalho
   pdf.set_font("Arial", "B", 12)
   pdf.cell(0, 8, f"RELATÓRIO ESTRATÉGICO: {nicho.upper()}", 0, 1)
   pdf.set_font("Arial", "", 9)
@@ -109,7 +116,6 @@ def build_pdf_report(nicho, metrics, persona_data, copy_data):
   )
   pdf.ln(4)
 
-  # Tabela de KPIs
   pdf.set_fill_color(241, 245, 249)
   pdf.rect(10, pdf.get_y(), 190, 18, "F")
   pdf.set_font("Arial", "B", 10)
@@ -122,22 +128,24 @@ def build_pdf_report(nicho, metrics, persona_data, copy_data):
   )
   pdf.ln(10)
 
-  # Seção 1
   pdf.set_font("Arial", "B", 11)
   pdf.set_text_color(15, 23, 42)
   pdf.cell(0, 7, "1. DIAGNÓSTICO DE PERSONA E DORES INVISÍVEIS", 0, 1)
   pdf.set_font("Arial", "", 9.5)
   pdf.set_text_color(51, 65, 85)
-  pdf.multi_cell(0, 5.5, persona_data.encode("latin-1", "replace").decode("latin-1"))
+  pdf.multi_cell(
+      0, 5.5, persona_data.encode("latin-1", "replace").decode("latin-1")
+  )
   pdf.ln(6)
 
-  # Seção 2
   pdf.set_font("Arial", "B", 11)
   pdf.set_text_color(15, 23, 42)
   pdf.cell(0, 7, "2. PEÇAS DE VENDAS E CONVERSÃO HIGH-TICKET", 0, 1)
   pdf.set_font("Arial", "", 9.5)
   pdf.set_text_color(51, 65, 85)
-  pdf.multi_cell(0, 5.5, copy_data.encode("latin-1", "replace").decode("latin-1"))
+  pdf.multi_cell(
+      0, 5.5, copy_data.encode("latin-1", "replace").decode("latin-1")
+  )
 
   return pdf.output(dest="S").encode("latin-1")
 
@@ -159,7 +167,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Sidebar
 st.sidebar.title("🛡️ Autenticação do Sistema")
 license_input = st.sidebar.text_input(
     "Insira sua Chave de Licença VIP:", type="password"
@@ -187,7 +194,6 @@ st.sidebar.markdown(
     "[🔑 Obter chave API Gemini Grátis](https://aistudio.google.com/)"
 )
 
-# Interface Principal
 st.title("📈 DeepMarket AI — Enterprise v2.0")
 st.caption(
     "Suíte Autônoma de Engenharia de Mercado, Mapeamento Comercial e Geração"
@@ -238,7 +244,6 @@ if btn_analisar:
       progress_bar = st.progress(0)
       status_text = st.empty()
 
-      # ETAPA 1
       status_text.text(
           "⚡ Etapa 1/4: Processando Métricas de Oportunidade e Saturação..."
       )
@@ -271,7 +276,6 @@ if btn_analisar:
 
       time.sleep(0.5)
 
-      # ETAPA 2
       status_text.text(
           "🧠 Etapa 2/4: Mapeando Dores Inconscientes e Matriz de Objeções..."
       )
@@ -287,7 +291,6 @@ if btn_analisar:
       res_persona = model.generate_content(prompt_persona).text
       time.sleep(0.5)
 
-      # ETAPA 3
       status_text.text(
           "✍️ Etapa 3/4: Construindo Peças de Vendas e Scripts de Abordagem..."
       )
@@ -302,7 +305,6 @@ if btn_analisar:
       res_copy = model.generate_content(prompt_copy).text
       time.sleep(0.5)
 
-      # ETAPA 4
       status_text.text("📑 Etapa 4/4: Gerando Dossiê Executivo Formatado...")
       progress_bar.progress(100)
       time.sleep(0.3)
