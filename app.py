@@ -1,5 +1,5 @@
 from fpdf import FPDF
-from google import genai
+import google.generativeai as genai
 import streamlit as st
 
 # Configuração da página
@@ -105,8 +105,8 @@ if st.button("🚀 EXECUTAR PIPELINE COMPLETO DE INTELIGÊNCIA"):
   else:
     with st.spinner("⚡ Gerando Dossiê Estratégico em tempo real..."):
       try:
-        # Novo SDK Google GenAI
-        client = genai.Client(api_key=gemini_api_key.strip())
+        genai.configure(api_key=gemini_api_key.strip())
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
         prompt = f"""
 Atue como Diretor Estratégico de Inteligência de Mercado B2B.
@@ -132,9 +132,7 @@ Gere um dossiê executivo direto, prático e profundo para:
 - Script de Abordagem Direct (WhatsApp/LinkedIn).
 - Copy de Anúncio High-Ticket.
 """
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
-        )
+        response = model.generate_content(prompt)
 
         if response and response.text:
           st.success("✅ Dossiê gerado com sucesso!")
