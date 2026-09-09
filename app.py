@@ -39,14 +39,57 @@ class LicenseManager:
 
 
 # ==========================================
-# 2. GERADORES DE DOSSIÊ EXECUTIVO
+# 2. HELPER COM FALLBACK AUTOMÁTICO DE MODELO GEMINI
+# ==========================================
+def generate_gemini_content(prompt: str, api_key: str) -> str:
+    genai.configure(api_key=api_key)
+
+    # Lista de modelos prioritários para tentar em sequência
+    candidate_models = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-pro",
+    ]
+
+    for model_name in candidate_models:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            if response and response.text:
+                return response.text
+        except Exception:
+            continue
+
+    # Caso os nomes diretos falhem, consulta a lista de modelos ativos da conta
+    try:
+        for m in genai.list_models():
+            if "generateContent" in m.supported_generation_methods:
+                try:
+                    model = genai.GenerativeModel(m.name)
+                    response = model.generate_content(prompt)
+                    if response and response.text:
+                        return response.text
+                except Exception:
+                    continue
+    except Exception as e:
+        raise Exception(f"Erro ao listar modelos disponíveis: {str(e)}")
+
+    raise Exception(
+        "Nenhum modelo Gemini compatível com generateContent foi encontrado para esta chave de API."
+    )
+
+
+# ==========================================
+# 3. GERADORES DE DOSSIÊ EXECUTIVO
 # ==========================================
 if HAS_FPDF:
 
     class CorporatePDF(FPDF):
 
         def header(self):
-            self.set_fill_color(6, 78, 59)  # Dark Emerald
+            self.set_fill_color(6, 78, 59)
             self.rect(0, 0, 210, 25, "F")
             self.set_font("Arial", "B", 14)
             self.set_text_color(255, 255, 255)
@@ -160,29 +203,25 @@ KPIs:
 
 
 # ==========================================
-# 3. INTERFACE STREAMLIT COM DESIGN VERDE
+# 4. INTERFACE STREAMLIT COM DESIGN VERDE
 # ==========================================
 st.set_page_config(
     page_title="DeepMarket AI Enterprise", page_icon="🟢", layout="wide"
 )
 
-# Estilização CSS Personalizada (Tema Dark Emerald)
 st.markdown(
     """
     <style>
-    /* Fundo Principal com Gradiente Verde/Escuro */
     .stApp {
         background: radial-gradient(circle at 50% 0%, #0d231a 0%, #06090e 75%) !important;
         color: #f1f5f9 !important;
     }
     
-    /* Painel Lateral */
     section[data-testid="stSidebar"] {
         background-color: #070d14 !important;
         border-right: 1px solid rgba(16, 185, 129, 0.2) !important;
     }
 
-    /* Botão de Ação Verde Neon */
     .stButton>button {
         background: linear-gradient(135deg, #10b981 0%, #047857 100%) !important;
         color: #ffffff !important;
@@ -200,7 +239,6 @@ st.markdown(
         box-shadow: 0 6px 22px rgba(16, 185, 129, 0.6) !important;
     }
 
-    /* Inputs de Texto */
     .stTextInput input, .stSelectbox > div > div {
         background-color: #0f172a !important;
         color: #f8fafc !important;
@@ -212,7 +250,6 @@ st.markdown(
         box-shadow: 0 0 10px rgba(16, 185, 129, 0.5) !important;
     }
 
-    /* Cards de Métricas */
     div[data-testid="stMetric"] {
         background: rgba(15, 23, 42, 0.75) !important;
         border: 1px solid rgba(16, 185, 129, 0.3) !important;
@@ -230,7 +267,6 @@ st.markdown(
         font-weight: 600 !important;
     }
 
-    /* Abas */
     button[data-baseweb="tab"] {
         color: #94a3b8 !important;
     }
@@ -239,7 +275,6 @@ st.markdown(
         border-bottom-color: #10b981 !important;
     }
 
-    /* Alertas e Infos */
     .stAlert {
         background-color: rgba(6, 78, 59, 0.4) !important;
         border: 1px solid rgba(16, 185, 129, 0.4) !important;
@@ -318,9 +353,6 @@ if btn_analisar:
         st.warning("Preencha o Nicho e o Público-Alvo para iniciar.")
     else:
         try:
-            genai.configure(api_key=api_key_input)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-
             progress_bar = st.progress(0)
             status_text = st.empty()
 
@@ -341,7 +373,9 @@ if btn_analisar:
             }}
             Não inclua marcação markdown nem texto adicional fora do JSON.
             """
-            res_metrics_raw = model.generate_content(prompt_metrics).text
+            res_metrics_raw = generate_gemini_content(
+                prompt_metrics, api_key_input
+            )
             try:
                 clean_json = (
                     res_metrics_raw.replace("```json", "")
@@ -357,7 +391,7 @@ if btn_analisar:
                     "resumo_oportunidade": "Oportunidade sólida identificada.",
                 }
 
-            time.sleep(0.4)
+            time.sleep(0.3)
 
             # ETAPA 2
             status_text.text(
@@ -372,8 +406,10 @@ if btn_analisar:
             2. MATRIZ DE OBJEÇÕES: As 3 maiores desculpas para NÃO comprar e como neutralizar cada uma.
             3. ÂNGULO DE POSICIONAMENTO ÚNICO: A promessa principal que torna a concorrência irrelevante.
             """
-            res_persona = model.generate_content(prompt_persona).text
-            time.sleep(0.4)
+            res_persona = generate_gemini_content(
+                prompt_persona, api_key_input
+            )
+            time.sleep(0.3)
 
             # ETAPA 3
             status_text.text(
@@ -387,13 +423,13 @@ if btn_analisar:
             2. MENSAGEM DE COLD OUTREACH (WhatsApp/LinkedIn): Mensagem direta de alto valor para iniciar conversas de vendas.
             3. ANÚNCIO DE ALTA CONVERSÃO: Copy completa com título, corpo e CTA direcionado.
             """
-            res_copy = model.generate_content(prompt_copy).text
-            time.sleep(0.4)
+            res_copy = generate_gemini_content(prompt_copy, api_key_input)
+            time.sleep(0.3)
 
             # ETAPA 4
             status_text.text("📑 Etapa 4/4: Gerando Dossiê Executivo Formatado...")
             progress_bar.progress(100)
-            time.sleep(0.3)
+            time.sleep(0.2)
 
             status_text.empty()
             progress_bar.empty()
